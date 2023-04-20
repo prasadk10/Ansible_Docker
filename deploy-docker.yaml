@@ -1,0 +1,72 @@
+---
+- name: install python3, docker and docker conpose
+  hosts: docker_server
+  become: yes
+  gather_facts: False
+  tasks: 
+   - name: install python3 and docker
+     vars:
+      ansible_python_interpreter: /usr/bin/python
+     yum:
+      name:
+       - python3
+       - docker
+      update_cache: yes
+      state: present
+   - name: install docker compose
+     get_url: 
+      url: https://github.com/docker/compose/releases/download/v2.14.0/docker-compose-Linux-x86_64
+      dest: /usr/local/bin/docker-compose
+      mode: +x
+   - name: ensure docker is running
+     systemd:
+      name: docker
+      state: started
+   - name: install docker python module
+     pip:
+      name: 
+       - docker
+       - docker-compose
+
+- name: add ec2 user to docker group
+  hosts: docker_server
+  become: yes
+  tasks: 
+   - name: add ec2 user to docker group
+     user: 
+      name: ec2-user
+      groups: docker
+      append: yes
+   - name: recinnect to server session
+     meta: reset_connection 
+    #  reconnet to the server
+
+- name: test docker pull
+  hosts: docker_server
+  tasks:
+   - name: pul redis
+     community.docker.docker_image:
+      name: redis
+      source: pull
+
+- name: start docker containers
+  hosts: docker_server
+  # vars_prompt:
+  #  - name: docker_password
+  vars_files:
+   - project_vars 
+     prompt: enter password for docker registry
+  tasks:
+   - name: copy docker compose
+     copy:
+      src:
+      dest:
+   - name: docker login
+     docker_login:
+      registry_url: https://index.docker.io/v1/
+      username:
+      password: "{{docker_password}}"
+   - name: start container from compose
+     docker_compose:
+      project_src: #source
+      state: present
